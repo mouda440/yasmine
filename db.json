@@ -1,0 +1,79 @@
+{
+  "orders": [],
+  "stocks": {
+    "tshirt": {
+      "grey-black": {
+        "S": 10,
+        "M": 15,
+        "L": 8,
+        "XL": 5
+      },
+      "white-black": {
+        "S": 12,
+        "M": 18,
+        "L": 7,
+        "XL": 3
+      }
+    },
+    "jort": {
+      "S": 5,
+      "M": 10,
+      "L": 6,
+      "XL": 4
+    }
+  },
+  "products": [
+    {
+      "id": "prod1",
+      "name": "Classic T-shirt",
+      "type": "tshirt",
+      "price": 120,
+      "images": [
+        {
+          "name": "Front",
+          "url": "img/front-black.jpg"
+        },
+        {
+          "name": "Back",
+          "url": "img/back-design.jpg"
+        }
+      ],
+      "stock": {
+        "grey-black": {
+          "S": 10,
+          "M": 15,
+          "L": 8,
+          "XL": 5
+        },
+        "white-black": {
+          "S": 12,
+          "M": 18,
+          "L": 7,
+          "XL": 3
+        }
+      }
+    },
+    {
+      "id": "prod2",
+      "name": "Designer Jort",
+      "type": "jort",
+      "price": 70,
+      "images": [
+        {
+          "name": "Front View",
+          "url": "img/jort-front.jpg"
+        },
+        {
+          "name": "Back View",
+          "url": "img/jort-back.jpg"
+        }
+      ],
+      "stock": {
+        "S": 5,
+        "M": 10,
+        "L": 6,
+        "XL": 4
+      }
+    }
+  ]
+}
