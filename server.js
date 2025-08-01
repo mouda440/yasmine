@@ -103,6 +103,8 @@ app.post('/api/products', (req, res) => {
         const index = db.products.findIndex(p => p.id === product.id);
         if (index !== -1) {
             db.products[index] = product;
+        } else {
+            db.products.push(product);
         }
     }
     
@@ -118,14 +120,20 @@ app.delete('/api/products/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// Update db.json structure in readDB()
+// Update readDB to initialize products
 function readDB() {
     if (!fs.existsSync(DB_FILE)) {
-        // Initialize with empty products array
         fs.writeFileSync(DB_FILE, JSON.stringify({ 
             orders: [], 
             products: [],
-            stocks: { /* existing stock structure */ }
+            stocks: {
+                tshirt: {
+                    "grey-black": { S: 0, M: 0, L: 0, XL: 0 },
+                    "white-black": { S: 0, M: 0, L: 0, XL: 0 },
+                    "white-red": { S: 0, M: 0, L: 0, XL: 0 }
+                },
+                jort: { S: 0, M: 0, L: 0, XL: 0 }
+            }
         }, null, 2));
     }
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));

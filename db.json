@@ -2,25 +2,11 @@
   "orders": [],
   "stocks": {
     "tshirt": {
-      "grey-black": {
-        "S": 10,
-        "M": 15,
-        "L": 8,
-        "XL": 5
-      },
-      "white-black": {
-        "S": 12,
-        "M": 18,
-        "L": 7,
-        "XL": 3
-      }
+      "grey-black": { "S": 10, "M": 15, "L": 8, "XL": 5 },
+      "white-black": { "S": 12, "M": 18, "L": 7, "XL": 3 },
+      "white-red": { "S": 8, "M": 10, "L": 5, "XL": 2 }
     },
-    "jort": {
-      "S": 5,
-      "M": 10,
-      "L": 6,
-      "XL": 4
-    }
+    "jort": { "S": 5, "M": 10, "L": 6, "XL": 4 }
   },
   "products": [
     {
@@ -29,28 +15,13 @@
       "type": "tshirt",
       "price": 120,
       "images": [
-        {
-          "name": "Front",
-          "url": "img/front-black.jpg"
-        },
-        {
-          "name": "Back",
-          "url": "img/back-design.jpg"
-        }
+        { "name": "Front", "url": "img/front-black.jpg" },
+        { "name": "Back", "url": "img/back-design.jpg" }
       ],
       "stock": {
-        "grey-black": {
-          "S": 10,
-          "M": 15,
-          "L": 8,
-          "XL": 5
-        },
-        "white-black": {
-          "S": 12,
-          "M": 18,
-          "L": 7,
-          "XL": 3
-        }
+        "grey-black": { "S": 10, "M": 15, "L": 8, "XL": 5 },
+        "white-black": { "S": 12, "M": 18, "L": 7, "XL": 3 },
+        "white-red": { "S": 8, "M": 10, "L": 5, "XL": 2 }
       }
     },
     {
@@ -59,21 +30,10 @@
       "type": "jort",
       "price": 70,
       "images": [
-        {
-          "name": "Front View",
-          "url": "img/jort-front.jpg"
-        },
-        {
-          "name": "Back View",
-          "url": "img/jort-back.jpg"
-        }
+        { "name": "Front View", "url": "img/jort-front.jpg" },
+        { "name": "Back View", "url": "img/jort-back.jpg" }
       ],
-      "stock": {
-        "S": 5,
-        "M": 10,
-        "L": 6,
-        "XL": 4
-      }
+      "stock": { "S": 5, "M": 10, "L": 6, "XL": 4 }
     }
   ]
 }
