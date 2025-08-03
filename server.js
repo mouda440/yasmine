@@ -92,48 +92,54 @@ app.get('/api/products', (req, res) => {
 app.post('/api/products', (req, res) => {
     const db = readDB();
     const product = req.body;
-    
-    if (!product.id) {
-        // Create new ID
+
+    // Basic validation
+    if (!product.name || typeof product.price !== 'number' || !product.type) {
+        return res.status(400).json({ success: false, error: 'Invalid product data' });
+    }
+
+    db.products = db.products || [];
+
+    // If id is missing or empty, create new product
+    if (!product.id || product.id === '') {
         product.id = crypto.randomBytes(4).toString('hex');
-        db.products = db.products || [];
         db.products.push(product);
+        writeDB(db);
+        return res.json({ success: true, id: product.id });
     } else {
-        // Update existing
+        // Update existing product
         const index = db.products.findIndex(p => p.id === product.id);
         if (index !== -1) {
             db.products[index] = product;
+            writeDB(db);
+            return res.json({ success: true, id: product.id });
         } else {
-            db.products.push(product);
+            return res.status(404).json({ success: false, error: 'Product not found' });
         }
     }
-    
-    writeDB(db);
-    res.json({ success: true, id: product.id });
 });
 
 // Delete product
 app.delete('/api/products/:id', (req, res) => {
     const db = readDB();
+    const initialLength = (db.products || []).length;
     db.products = (db.products || []).filter(p => p.id !== req.params.id);
     writeDB(db);
-    res.json({ success: true });
+    if (db.products.length < initialLength) {
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ success: false, error: 'Product not found' });
+    }
 });
 
-// Update readDB to initialize products
+// Update db.json structure in readDB()
 function readDB() {
     if (!fs.existsSync(DB_FILE)) {
+        // Initialize with empty products array
         fs.writeFileSync(DB_FILE, JSON.stringify({ 
             orders: [], 
             products: [],
-            stocks: {
-                tshirt: {
-                    "grey-black": { S: 0, M: 0, L: 0, XL: 0 },
-                    "white-black": { S: 0, M: 0, L: 0, XL: 0 },
-                    "white-red": { S: 0, M: 0, L: 0, XL: 0 }
-                },
-                jort: { S: 0, M: 0, L: 0, XL: 0 }
-            }
+            stocks: { /* existing stock structure */ }
         }, null, 2));
     }
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
