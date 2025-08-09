@@ -54,16 +54,21 @@ app.post('/api/orders', (req, res) => {
     // Optionally update stocks here if order contains cart
     if (req.body.cart) {
         req.body.cart.forEach(item => {
+            const qty = item.qty || 1;
             if (item.type === 'tshirt') {
                 const { style, size } = item;
-                if (db.stocks.tshirt?.[style]?.[size] > 0) {
-                    db.stocks.tshirt[style][size]--;
+                if (db.stocks.tshirt?.[style]?.[size] >= qty) {
+                    db.stocks.tshirt[style][size] -= qty;
+                } else if (db.stocks.tshirt?.[style]?.[size] > 0) {
+                    db.stocks.tshirt[style][size] = 0;
                 }
             }
             if (item.type === 'jort') {
                 const { size } = item;
-                if (db.stocks.jort?.[size] > 0) {
-                    db.stocks.jort[size]--;
+                if (db.stocks.jort?.[size] >= qty) {
+                    db.stocks.jort[size] -= qty;
+                } else if (db.stocks.jort?.[size] > 0) {
+                    db.stocks.jort[size] = 0;
                 }
             }
         });
