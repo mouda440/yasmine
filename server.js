@@ -13,15 +13,27 @@ app.use(express.json());
 
 // Helper to read/write DB
 function readDB() {
-    if (!fs.existsSync(DB_FILE)) {
-        // Initialize with empty products array
-        fs.writeFileSync(DB_FILE, JSON.stringify({ 
-            orders: [], 
-            products: [],
-            stocks: { /* existing stock structure */ }
-        }, null, 2));
+    let db;
+    try {
+        const raw = fs.readFileSync(DB_FILE, 'utf8');
+        db = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        db = null;
     }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    if (!db || typeof db !== 'object') {
+        // If db.json is empty or invalid, re-initialize
+        db = {
+            orders: [],
+            products: [],
+            stocks: { tshirt: {}, jort: {} }
+        };
+        writeDB(db);
+    }
+    // Ensure stocks is always present and valid
+    if (!db.stocks || typeof db.stocks !== 'object') {
+        db.stocks = { tshirt: {}, jort: {} };
+    }
+    return db;
 }
 function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
@@ -50,8 +62,35 @@ app.get('/api/orders', (req, res) => {
 // Add order
 app.post('/api/orders', (req, res) => {
     const db = readDB();
+    // --- Strict backend stock validation ---
+    let stockErrorMsg = '';
+    if (req.body.cart) {
+        req.body.cart.forEach(item => {
+            const qty = item.qty || 1;
+            let available = 0;
+            if (item.type === 'tshirt') {
+                const { style, size } = item;
+                available = db.stocks.tshirt?.[style]?.[size] ?? 0;
+                if (qty > available) {
+                    stockErrorMsg += `Not enough stock for ${item.name} (requested: ${qty}, available: ${available}).\n`;
+                }
+            }
+            if (item.type === 'jort') {
+                const { size } = item;
+                available = db.stocks.jort?.[size] ?? 0;
+                if (qty > available) {
+                    stockErrorMsg += `Not enough stock for ${item.name} (requested: ${qty}, available: ${available}).\n`;
+                }
+            }
+        });
+    }
+    if (stockErrorMsg) {
+        return res.status(400).json({ success: false, error: stockErrorMsg.trim() });
+    }
+    // --- End strict backend stock validation ---
+
     db.orders.push(req.body);
-    // Optionally update stocks here if order contains cart
+    // Update stocks
     if (req.body.cart) {
         req.body.cart.forEach(item => {
             const qty = item.qty || 1;
