@@ -13,6 +13,12 @@
         "M": 18,
         "L": 7,
         "XL": 3
+      },
+      "white-red": {
+        "S": 0,
+        "M": 0,
+        "L": 0,
+        "XL": 0
       }
     },
     "jort": {
@@ -31,12 +37,25 @@
       "images": [
         {
           "name": "Front",
-          "url": "img/front-black.jpg"
+          "url": "img/front black.jpg"
         },
         {
           "name": "Back",
-          "url": "img/back-design.jpg"
+          "url": "img/back grey-black.jpg"
+        },
+        {
+          "name": "Front",
+          "url": "img/front black.jpg"
+        },
+        {
+          "name": "Back",
+          "url": "img/back black-white.jpg"
         }
+      ],
+      "styles": [
+        { "value": "grey-black", "label": "Grey on Black" },
+        { "value": "white-black", "label": "White on Black" },
+        { "value": "white-red", "label": "White on Red" }
       ],
       "stock": {
         "grey-black": {
@@ -50,6 +69,12 @@
           "M": 18,
           "L": 7,
           "XL": 3
+        },
+        "white-red": {
+          "S": 0,
+          "M": 0,
+          "L": 0,
+          "XL": 0
         }
       }
     },
@@ -75,5 +100,9 @@
         "XL": 4
       }
     }
-  ]
+  ],
+  "admin": {
+    "username": "admin",
+    "password": "vision2025"
+  }
 }
