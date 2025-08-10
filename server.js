@@ -59,12 +59,20 @@ app.post('/api/orders', (req, res) => {
                 }
             } else {
                 // For other products, use product id and size
-                // Try to find product id from products array
                 let prodId = item.id || item.productId;
+                // Try to find product id from products array if not present
                 if (!prodId && db.products && Array.isArray(db.products)) {
-                    const prod = db.products.find(p => p.name === item.name.split(' (')[0]);
+                    // Try to match by name (before any " (" for style/size)
+                    const baseName = item.name.split(' (')[0];
+                    const prod = db.products.find(p => p.name === baseName);
                     if (prod) prodId = prod.id;
                 }
+                // If still not found, try matching by name directly
+                if (!prodId && db.products && Array.isArray(db.products)) {
+                    const prod = db.products.find(p => p.name === item.name);
+                    if (prod) prodId = prod.id;
+                }
+                // Deduct stock for this product id and size
                 if (prodId && item.size && db.stocks[prodId]?.[item.size] > 0) {
                     db.stocks[prodId][item.size]--;
                 }
