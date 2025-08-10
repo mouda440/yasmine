@@ -28,10 +28,10 @@ function writeDB(data) {
 // Get stocks
 app.get('/api/stocks', (req, res) => {
     const db = readDB();
-    res.json(db.stocks);
+    res.json(db.stocks || {});
 });
 
-// Set stocks (admin)
+// Update stocks
 app.post('/api/stocks', (req, res) => {
     const db = readDB();
     db.stocks = req.body;
@@ -108,7 +108,7 @@ app.listen(PORT, () => {
     console.log(`Backend running on port ${PORT}`);
 });
 
-// Get all products
+// Get products
 app.get('/api/products', (req, res) => {
     const db = readDB();
     res.json(db.products || []);
@@ -118,8 +118,7 @@ app.get('/api/products', (req, res) => {
 app.post('/api/products', (req, res) => {
     const db = readDB();
     const product = req.body;
-
-    // Basic validation
+    
     if (!product.name || typeof product.price !== 'number' || !product.type) {
         return res.status(400).json({ success: false, error: 'Invalid product data' });
     }
@@ -127,75 +126,89 @@ app.post('/api/products', (req, res) => {
     db.products = db.products || [];
     db.stocks = db.stocks || {};
 
-    // If id is missing or empty, create new product
-    if (!product.id || product.id === '') {
-        product.id = crypto.randomBytes(4).toString('hex');
-        
-        // Initialize stocks for new product
-        if (product.type === 'tshirt') {
-            db.stocks.tshirt = db.stocks.tshirt || {};
-            if (product.stock) {
-                for (const style in product.stock) {
-                    db.stocks.tshirt[style] = { ...product.stock[style] };
-                }
-            }
-        } else if (product.type === 'jort') {
-            db.stocks.jort = db.stocks.jort || {};
-            if (product.stock) {
-                for (const size in product.stock) {
-                    db.stocks.jort[size] = product.stock[size];
-                }
-            }
-        } else {
-            // For other products, store by product id
-            db.stocks[product.id] = { ...product.stock };
-        }
-        
+    // If no id, create new product
+    if (!product.id) {
+        product.id = Math.random().toString(36).slice(2, 10);
         db.products.push(product);
-        writeDB(db);
-        return res.json({ success: true, id: product.id });
-    } else {
-        // Update existing product
-        const index = db.products.findIndex(p => p.id === product.id);
-        if (index !== -1) {
-            // Update stocks
-            if (product.type === 'tshirt') {
-                db.stocks.tshirt = db.stocks.tshirt || {};
-                if (product.stock) {
-                    for (const style in product.stock) {
-                        db.stocks.tshirt[style] = { ...product.stock[style] };
-                    }
+
+        // Initialize stock structure based on product type
+        if (product.type === 'tshirt') {
+            if (!db.stocks.tshirt) db.stocks.tshirt = {};
+            const styles = product.styles || [
+                { value: 'grey-black' },
+                { value: 'white-black' },
+                { value: 'white-red' }
+            ];
+            styles.forEach(style => {
+                if (!db.stocks.tshirt[style.value]) {
+                    db.stocks.tshirt[style.value] = {
+                        'S': 0, 'M': 0, 'L': 0, 'XL': 0
+                    };
                 }
-            } else if (product.type === 'jort') {
-                db.stocks.jort = db.stocks.jort || {};
-                if (product.stock) {
-                    for (const size in product.stock) {
-                        db.stocks.jort[size] = product.stock[size];
-                    }
-                }
-            } else {
-                // For other products, update stock by id
-                db.stocks[product.id] = { ...product.stock };
+            });
+        }
+        else if (product.type === 'jort') {
+            if (!db.stocks.jort) {
+                db.stocks.jort = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
             }
-            
-            db.products[index] = product;
-            writeDB(db);
-            return res.json({ success: true, id: product.id });
-        } else {
+        }
+        else {
+            // Other products: store stock by product ID
+            db.stocks[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
+        }
+    } 
+    // Update existing product
+    else {
+        const index = db.products.findIndex(p => p.id === product.id);
+        if (index === -1) {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
+        db.products[index] = product;
     }
+
+    writeDB(db);
+    res.json({ success: true, id: product.id });
 });
 
 // Delete product
 app.delete('/api/products/:id', (req, res) => {
     const db = readDB();
-    const initialLength = (db.products || []).length;
-    db.products = (db.products || []).filter(p => p.id !== req.params.id);
-    writeDB(db);
-    if (db.products.length < initialLength) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ success: false, error: 'Product not found' });
+    const id = req.params.id;
+    
+    db.products = (db.products || []).filter(p => p.id !== id);
+    
+    // Clean up associated stocks
+    if (db.stocks && db.stocks[id]) {
+        delete db.stocks[id];
     }
+    
+    writeDB(db);
+    res.json({ success: true });
+});
+
+// Update stock for specific product
+app.post('/api/stocks/:productId', (req, res) => {
+    const db = readDB();
+    const { productId } = req.params;
+    const stockUpdate = req.body;
+    
+    const product = db.products?.find(p => p.id === productId);
+    if (!product) {
+        return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    if (product.type === 'tshirt') {
+        if (!db.stocks.tshirt) db.stocks.tshirt = {};
+        Object.assign(db.stocks.tshirt, stockUpdate);
+    }
+    else if (product.type === 'jort') {
+        if (!db.stocks.jort) db.stocks.jort = {};
+        Object.assign(db.stocks.jort, stockUpdate);
+    }
+    else {
+        db.stocks[productId] = stockUpdate;
+    }
+
+    writeDB(db);
+    res.json({ success: true });
 });
