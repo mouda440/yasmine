@@ -49,17 +49,17 @@ app.get('/api/orders', (req, res) => {
 app.post('/api/orders', (req, res) => {
     const db = readDB();
     db.orders.push(req.body);
-    // --- Update stocks for all product types ---
+    // --- Deduct each item bought from stocks ---
     if (req.body.cart) {
         req.body.cart.forEach(item => {
             if (item.type === 'tshirt') {
                 const { style, size } = item;
-                if (db.stocks.tshirt?.[style]?.[size] > 0) {
+                if (db.stocks.tshirt?.[style]?.[size] !== undefined && db.stocks.tshirt[style][size] > 0) {
                     db.stocks.tshirt[style][size]--;
                 }
             } else if (item.type === 'jort') {
                 const { size } = item;
-                if (db.stocks.jort?.[size] > 0) {
+                if (db.stocks.jort?.[size] !== undefined && db.stocks.jort[size] > 0) {
                     db.stocks.jort[size]--;
                 }
             } else {
@@ -80,7 +80,7 @@ app.post('/api/orders', (req, res) => {
                 // Deduct stock for this product id and size
                 if (prodId && item.size) {
                     if (!db.stocks[prodId]) db.stocks[prodId] = {};
-                    if (db.stocks[prodId][item.size] > 0) {
+                    if (db.stocks[prodId][item.size] !== undefined && db.stocks[prodId][item.size] > 0) {
                         db.stocks[prodId][item.size]--;
                     }
                 }
