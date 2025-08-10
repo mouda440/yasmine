@@ -125,10 +125,32 @@ app.post('/api/products', (req, res) => {
     }
 
     db.products = db.products || [];
+    db.stocks = db.stocks || {};
 
     // If id is missing or empty, create new product
     if (!product.id || product.id === '') {
         product.id = crypto.randomBytes(4).toString('hex');
+        
+        // Initialize stocks for new product
+        if (product.type === 'tshirt') {
+            db.stocks.tshirt = db.stocks.tshirt || {};
+            if (product.stock) {
+                for (const style in product.stock) {
+                    db.stocks.tshirt[style] = { ...product.stock[style] };
+                }
+            }
+        } else if (product.type === 'jort') {
+            db.stocks.jort = db.stocks.jort || {};
+            if (product.stock) {
+                for (const size in product.stock) {
+                    db.stocks.jort[size] = product.stock[size];
+                }
+            }
+        } else {
+            // For other products, store by product id
+            db.stocks[product.id] = { ...product.stock };
+        }
+        
         db.products.push(product);
         writeDB(db);
         return res.json({ success: true, id: product.id });
@@ -136,6 +158,26 @@ app.post('/api/products', (req, res) => {
         // Update existing product
         const index = db.products.findIndex(p => p.id === product.id);
         if (index !== -1) {
+            // Update stocks
+            if (product.type === 'tshirt') {
+                db.stocks.tshirt = db.stocks.tshirt || {};
+                if (product.stock) {
+                    for (const style in product.stock) {
+                        db.stocks.tshirt[style] = { ...product.stock[style] };
+                    }
+                }
+            } else if (product.type === 'jort') {
+                db.stocks.jort = db.stocks.jort || {};
+                if (product.stock) {
+                    for (const size in product.stock) {
+                        db.stocks.jort[size] = product.stock[size];
+                    }
+                }
+            } else {
+                // For other products, update stock by id
+                db.stocks[product.id] = { ...product.stock };
+            }
+            
             db.products[index] = product;
             writeDB(db);
             return res.json({ success: true, id: product.id });
