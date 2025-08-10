@@ -212,3 +212,79 @@ app.post('/api/stocks/:productId', (req, res) => {
     writeDB(db);
     res.json({ success: true });
 });
+
+// Get inventory status
+app.get('/api/inventory', (req, res) => {
+    const db = readDB();
+    res.json(db.inventory || {});
+});
+
+// Update product stock
+app.post('/api/inventory/product/:id', (req, res) => {
+    const db = readDB();
+    const { id } = req.params;
+    const stock = req.body;
+    
+    if (!db.inventory) db.inventory = { products: {}, categories: {} };
+    
+    // Validate product exists
+    const product = db.products.find(p => p.id === id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    
+    // Update stock based on product type
+    if (product.type === 'tshirt') {
+        if (!db.inventory.categories.tshirt) {
+            db.inventory.categories.tshirt = { styles: {}, sizes: ["S", "M", "L", "XL"] };
+        }
+        db.inventory.categories.tshirt.styles = {
+            ...db.inventory.categories.tshirt.styles,
+            ...stock
+        };
+    }
+    else if (product.type === 'jort') {
+        if (!db.inventory.categories.jort) {
+            db.inventory.categories.jort = { sizes: ["S", "M", "L", "XL"] };
+        }
+        db.inventory.categories.jort = {
+            ...db.inventory.categories.jort,
+            ...stock
+        };
+    }
+    else {
+        db.inventory.products[id] = stock;
+    }
+    
+    writeDB(db);
+    res.json({ success: true });
+});
+
+// Check stock availability
+app.get('/api/inventory/check', (req, res) => {
+    const db = readDB();
+    const { productId, style, size } = req.query;
+    
+    const product = db.products.find(p => p.id === productId);
+    if (!product) return res.json({ available: 0 });
+    
+    let stock = 0;
+    
+    if (product.type === 'tshirt') {
+        stock = db.inventory?.categories?.tshirt?.styles?.[style]?.[size] || 0;
+    }
+    else if (product.type === 'jort') {
+        stock = db.inventory?.categories?.jort?.[size] || 0;
+    }
+    else {
+        stock = db.inventory?.products?.[productId]?.[size] || 0;
+    }
+    
+    res.json({ available: stock });
+});
+
+// Bulk update inventory
+app.post('/api/inventory/bulk', (req, res) => {
+    const db = readDB();
+    db.inventory = req.body;
+    writeDB(db);
+    res.json({ success: true });
+});
