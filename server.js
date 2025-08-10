@@ -12,7 +12,12 @@ app.use(express.json());
 // Helper to read/write DB
 function readDB() {
     if (!fs.existsSync(DB_FILE)) {
-        fs.writeFileSync(DB_FILE, JSON.stringify({ stocks: {}, orders: [] }, null, 2));
+        // Initialize with empty products array
+        fs.writeFileSync(DB_FILE, JSON.stringify({ 
+            orders: [], 
+            products: [],
+            stocks: { /* existing stock structure */ }
+        }, null, 2));
     }
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
@@ -73,8 +78,11 @@ app.post('/api/orders', (req, res) => {
                     if (prod) prodId = prod.id;
                 }
                 // Deduct stock for this product id and size
-                if (prodId && item.size && db.stocks[prodId]?.[item.size] > 0) {
-                    db.stocks[prodId][item.size]--;
+                if (prodId && item.size) {
+                    if (!db.stocks[prodId]) db.stocks[prodId] = {};
+                    if (db.stocks[prodId][item.size] > 0) {
+                        db.stocks[prodId][item.size]--;
+                    }
                 }
             }
         });
@@ -149,16 +157,3 @@ app.delete('/api/products/:id', (req, res) => {
         res.status(404).json({ success: false, error: 'Product not found' });
     }
 });
-
-// Update db.json structure in readDB()
-function readDB() {
-    if (!fs.existsSync(DB_FILE)) {
-        // Initialize with empty products array
-        fs.writeFileSync(DB_FILE, JSON.stringify({ 
-            orders: [], 
-            products: [],
-            stocks: { /* existing stock structure */ }
-        }, null, 2));
-    }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-}
