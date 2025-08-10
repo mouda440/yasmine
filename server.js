@@ -5,35 +5,16 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DB_FILE = __dirname + '/db.json';
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'vision_secret_2025';
 
 app.use(cors());
 app.use(express.json());
 
 // Helper to read/write DB
 function readDB() {
-    let db;
-    try {
-        const raw = fs.readFileSync(DB_FILE, 'utf8');
-        db = raw ? JSON.parse(raw) : null;
-    } catch (e) {
-        db = null;
+    if (!fs.existsSync(DB_FILE)) {
+        fs.writeFileSync(DB_FILE, JSON.stringify({ stocks: {}, orders: [] }, null, 2));
     }
-    if (!db || typeof db !== 'object') {
-        // If db.json is empty or invalid, re-initialize
-        db = {
-            orders: [],
-            products: [],
-            stocks: { tshirt: {}, jort: {} }
-        };
-        writeDB(db);
-    }
-    // Ensure stocks is always present and valid
-    if (!db.stocks || typeof db.stocks !== 'object') {
-        db.stocks = { tshirt: {}, jort: {} };
-    }
-    return db;
+    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
 function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
@@ -62,52 +43,30 @@ app.get('/api/orders', (req, res) => {
 // Add order
 app.post('/api/orders', (req, res) => {
     const db = readDB();
-    // --- Strict backend stock validation ---
-    let stockErrorMsg = '';
-    if (req.body.cart) {
-        req.body.cart.forEach(item => {
-            const qty = item.qty || 1;
-            let available = 0;
-            if (item.type === 'tshirt') {
-                const { style, size } = item;
-                available = db.stocks.tshirt?.[style]?.[size] ?? 0;
-                if (qty > available) {
-                    stockErrorMsg += `Not enough stock for ${item.name} (requested: ${qty}, available: ${available}).\n`;
-                }
-            }
-            if (item.type === 'jort') {
-                const { size } = item;
-                available = db.stocks.jort?.[size] ?? 0;
-                if (qty > available) {
-                    stockErrorMsg += `Not enough stock for ${item.name} (requested: ${qty}, available: ${available}).\n`;
-                }
-            }
-        });
-    }
-    if (stockErrorMsg) {
-        return res.status(400).json({ success: false, error: stockErrorMsg.trim() });
-    }
-    // --- End strict backend stock validation ---
-
     db.orders.push(req.body);
-    // Update stocks
+    // --- Update stocks for all product types ---
     if (req.body.cart) {
         req.body.cart.forEach(item => {
-            const qty = item.qty || 1;
             if (item.type === 'tshirt') {
                 const { style, size } = item;
-                if (db.stocks.tshirt?.[style]?.[size] >= qty) {
-                    db.stocks.tshirt[style][size] -= qty;
-                } else if (db.stocks.tshirt?.[style]?.[size] > 0) {
-                    db.stocks.tshirt[style][size] = 0;
+                if (db.stocks.tshirt?.[style]?.[size] > 0) {
+                    db.stocks.tshirt[style][size]--;
                 }
-            }
-            if (item.type === 'jort') {
+            } else if (item.type === 'jort') {
                 const { size } = item;
-                if (db.stocks.jort?.[size] >= qty) {
-                    db.stocks.jort[size] -= qty;
-                } else if (db.stocks.jort?.[size] > 0) {
-                    db.stocks.jort[size] = 0;
+                if (db.stocks.jort?.[size] > 0) {
+                    db.stocks.jort[size]--;
+                }
+            } else {
+                // For other products, use product id and size
+                // Try to find product id from products array
+                let prodId = item.id || item.productId;
+                if (!prodId && db.products && Array.isArray(db.products)) {
+                    const prod = db.products.find(p => p.name === item.name.split(' (')[0]);
+                    if (prod) prodId = prod.id;
+                }
+                if (prodId && item.size && db.stocks[prodId]?.[item.size] > 0) {
+                    db.stocks[prodId][item.size]--;
                 }
             }
         });
@@ -127,6 +86,10 @@ app.delete('/api/orders/:index', (req, res) => {
     } else {
         res.status(404).json({ error: 'Order not found' });
     }
+});
+
+app.listen(PORT, () => {
+    console.log(`Backend running on port ${PORT}`);
 });
 
 // Get all products
@@ -179,100 +142,15 @@ app.delete('/api/products/:id', (req, res) => {
     }
 });
 
-// --- JWT Auth Middleware ---
-function requireAdmin(req, res, next) {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
-    try {
-        jwt.verify(auth.slice(7), JWT_SECRET);
-        next();
-    } catch (e) {
-        res.status(401).json({ error: 'Invalid token' });
+// Update db.json structure in readDB()
+function readDB() {
+    if (!fs.existsSync(DB_FILE)) {
+        // Initialize with empty products array
+        fs.writeFileSync(DB_FILE, JSON.stringify({ 
+            orders: [], 
+            products: [],
+            stocks: { /* existing stock structure */ }
+        }, null, 2));
     }
+    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
-
-// --- Admin Login ---
-app.post('/api/admin/login', (req, res) => {
-    const { username, password } = req.body;
-    const db = readDB();
-    if (db.admin && username === db.admin.username && password === db.admin.password) {
-        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '2h' });
-        return res.json({ success: true, token });
-    }
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
-});
-
-// --- Change Admin Credentials ---
-app.post('/api/admin/change-credentials', requireAdmin, (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password || username.length < 3 || password.length < 4) {
-        return res.status(400).json({ success: false, error: 'Invalid username or password' });
-    }
-    const db = readDB();
-    db.admin = { username, password };
-    writeDB(db);
-    res.json({ success: true });
-});
-
-// --- Protect admin endpoints ---
-app.post('/api/products', requireAdmin, (req, res) => {
-    const db = readDB();
-    const product = req.body;
-
-    // Basic validation
-    if (!product.name || typeof product.price !== 'number' || !product.type) {
-        return res.status(400).json({ success: false, error: 'Invalid product data' });
-    }
-
-    db.products = db.products || [];
-
-    // If id is missing or empty, create new product
-    if (!product.id || product.id === '') {
-        product.id = crypto.randomBytes(4).toString('hex');
-        db.products.push(product);
-        writeDB(db);
-        return res.json({ success: true, id: product.id });
-    } else {
-        // Update existing product
-        const index = db.products.findIndex(p => p.id === product.id);
-        if (index !== -1) {
-            db.products[index] = product;
-            writeDB(db);
-            return res.json({ success: true, id: product.id });
-        } else {
-            return res.status(404).json({ success: false, error: 'Product not found' });
-        }
-    }
-});
-app.delete('/api/products/:id', requireAdmin, (req, res) => {
-    const db = readDB();
-    const initialLength = (db.products || []).length;
-    db.products = (db.products || []).filter(p => p.id !== req.params.id);
-    writeDB(db);
-    if (db.products.length < initialLength) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ success: false, error: 'Product not found' });
-    }
-});
-app.post('/api/stocks', requireAdmin, (req, res) => {
-    const db = readDB();
-    db.stocks = req.body;
-    writeDB(db);
-    res.json({ success: true });
-});
-app.delete('/api/orders/:index', requireAdmin, (req, res) => {
-    const db = readDB();
-    const idx = parseInt(req.params.index, 10);
-    if (idx >= 0 && idx < db.orders.length) {
-        db.orders.splice(idx, 1);
-        writeDB(db);
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Order not found' });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`Backend running on port ${PORT}`);
-});

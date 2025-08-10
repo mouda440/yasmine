@@ -37,19 +37,11 @@
       "images": [
         {
           "name": "Front",
-          "url": "img/front black.jpg"
+          "url": "img/front-black.jpg"
         },
         {
           "name": "Back",
-          "url": "img/back grey-black.jpg"
-        },
-        {
-          "name": "Front",
-          "url": "img/front black.jpg"
-        },
-        {
-          "name": "Back",
-          "url": "img/back black-white.jpg"
+          "url": "img/back-design.jpg"
         }
       ],
       "styles": [
@@ -100,9 +92,5 @@
         "XL": 4
       }
     }
-  ],
-  "admin": {
-    "username": "admin",
-    "password": "vision2025"
-  }
+  ]
 }
