@@ -124,37 +124,38 @@ app.post('/api/products', (req, res) => {
     }
 
     db.products = db.products || [];
-    db.stocks = db.stocks || {};
+    db.inventory = db.inventory || { products: {}, categories: {} };
 
     // If no id, create new product
     if (!product.id) {
         product.id = Math.random().toString(36).slice(2, 10);
         db.products.push(product);
 
-        // Initialize stock structure based on product type
+        // Initialize inventory structure based on product type
         if (product.type === 'tshirt') {
-            if (!db.stocks.tshirt) db.stocks.tshirt = {};
-            const styles = product.styles || [
-                { value: 'grey-black' },
-                { value: 'white-black' },
-                { value: 'white-red' }
-            ];
+            if (!db.inventory.categories.tshirt) {
+                db.inventory.categories.tshirt = { styles: {}, sizes: ["S", "M", "L", "XL"] };
+            }
+            // Initialize stock for each style
+            const styles = (product.styles && Array.isArray(product.styles)) 
+                ? product.styles 
+                : [{ value: 'grey-black' }, { value: 'white-black' }, { value: 'white-red' }];
+
             styles.forEach(style => {
-                if (!db.stocks.tshirt[style.value]) {
-                    db.stocks.tshirt[style.value] = {
+                if (!db.inventory.categories.tshirt.styles[style.value]) {
+                    db.inventory.categories.tshirt.styles[style.value] = {
                         'S': 0, 'M': 0, 'L': 0, 'XL': 0
                     };
                 }
             });
         }
         else if (product.type === 'jort') {
-            if (!db.stocks.jort) {
-                db.stocks.jort = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
+            if (!db.inventory.categories.jort) {
+                db.inventory.categories.jort = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
             }
         }
         else {
-            // Other products: store stock by product ID
-            db.stocks[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
+            db.inventory.products[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
         }
     } 
     // Update existing product
@@ -163,6 +164,23 @@ app.post('/api/products', (req, res) => {
         if (index === -1) {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
+        
+        // Update inventory structure if styles changed
+        if (product.type === 'tshirt' && product.styles) {
+            if (!db.inventory.categories.tshirt) {
+                db.inventory.categories.tshirt = { styles: {}, sizes: ["S", "M", "L", "XL"] };
+            }
+            
+            // Initialize new styles while preserving existing stock
+            product.styles.forEach(style => {
+                if (!db.inventory.categories.tshirt.styles[style.value]) {
+                    db.inventory.categories.tshirt.styles[style.value] = {
+                        'S': 0, 'M': 0, 'L': 0, 'XL': 0
+                    };
+                }
+            });
+        }
+        
         db.products[index] = product;
     }
 
