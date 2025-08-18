@@ -16,7 +16,28 @@ function readDB() {
         fs.writeFileSync(DB_FILE, JSON.stringify({ 
             orders: [], 
             products: [],
-            stocks: { /* existing stock structure */ }
+            stocks: { 
+                tshirt: {
+                    'grey-black': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 },
+                    'white-black': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 },
+                    'white-red': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 }
+                },
+                jort: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 }
+            },
+            inventory: {
+                products: {},
+                categories: {
+                    tshirt: {
+                        styles: {
+                            'grey-black': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 },
+                            'white-black': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 },
+                            'white-red': { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 }
+                        },
+                        sizes: ["S", "M", "L", "XL"]
+                    },
+                    jort: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 }
+                }
+            }
         }, null, 2));
     }
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -49,18 +70,21 @@ app.get('/api/orders', (req, res) => {
 app.post('/api/orders', (req, res) => {
     const db = readDB();
     db.orders.push(req.body);
-    // --- Deduct each item bought from stocks ---
+    
+    // Deduct stock from inventory when order is placed
     if (req.body.cart) {
         req.body.cart.forEach(item => {
             if (item.type === 'tshirt') {
                 const { style, size } = item;
-                if (db.stocks.tshirt?.[style]?.[size] !== undefined && db.stocks.tshirt[style][size] > 0) {
-                    db.stocks.tshirt[style][size]--;
+                if (db.inventory?.categories?.tshirt?.styles?.[style]?.[size] !== undefined && 
+                    db.inventory.categories.tshirt.styles[style][size] > 0) {
+                    db.inventory.categories.tshirt.styles[style][size]--;
                 }
             } else if (item.type === 'jort') {
                 const { size } = item;
-                if (db.stocks.jort?.[size] !== undefined && db.stocks.jort[size] > 0) {
-                    db.stocks.jort[size]--;
+                if (db.inventory?.categories?.jort?.[size] !== undefined && 
+                    db.inventory.categories.jort[size] > 0) {
+                    db.inventory.categories.jort[size]--;
                 }
             } else {
                 // For other products, use product id and size
@@ -72,21 +96,19 @@ app.post('/api/orders', (req, res) => {
                     const prod = db.products.find(p => p.name === baseName);
                     if (prod) prodId = prod.id;
                 }
-                // If still not found, try matching by name directly
-                if (!prodId && db.products && Array.isArray(db.products)) {
-                    const prod = db.products.find(p => p.name === item.name);
-                    if (prod) prodId = prod.id;
-                }
                 // Deduct stock for this product id and size
                 if (prodId && item.size) {
-                    if (!db.stocks[prodId]) db.stocks[prodId] = {};
-                    if (db.stocks[prodId][item.size] !== undefined && db.stocks[prodId][item.size] > 0) {
-                        db.stocks[prodId][item.size]--;
+                    if (!db.inventory.products) db.inventory.products = {};
+                    if (!db.inventory.products[prodId]) db.inventory.products[prodId] = {};
+                    if (db.inventory.products[prodId][item.size] !== undefined && 
+                        db.inventory.products[prodId][item.size] > 0) {
+                        db.inventory.products[prodId][item.size]--;
                     }
                 }
             }
         });
     }
+    
     writeDB(db);
     res.json({ success: true });
 });
@@ -196,8 +218,8 @@ app.delete('/api/products/:id', (req, res) => {
     db.products = (db.products || []).filter(p => p.id !== id);
     
     // Clean up associated stocks
-    if (db.stocks && db.stocks[id]) {
-        delete db.stocks[id];
+    if (db.inventory?.products && db.inventory.products[id]) {
+        delete db.inventory.products[id];
     }
     
     writeDB(db);
@@ -215,16 +237,23 @@ app.post('/api/stocks/:productId', (req, res) => {
         return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
+    // Ensure inventory structure exists
+    if (!db.inventory) db.inventory = { products: {}, categories: {} };
+
     if (product.type === 'tshirt') {
-        if (!db.stocks.tshirt) db.stocks.tshirt = {};
-        Object.assign(db.stocks.tshirt, stockUpdate);
+        if (!db.inventory.categories.tshirt) {
+            db.inventory.categories.tshirt = { styles: {}, sizes: ["S", "M", "L", "XL"] };
+        }
+        Object.assign(db.inventory.categories.tshirt.styles, stockUpdate);
     }
     else if (product.type === 'jort') {
-        if (!db.stocks.jort) db.stocks.jort = {};
-        Object.assign(db.stocks.jort, stockUpdate);
+        if (!db.inventory.categories.jort) {
+            db.inventory.categories.jort = {};
+        }
+        Object.assign(db.inventory.categories.jort, stockUpdate);
     }
     else {
-        db.stocks[productId] = stockUpdate;
+        db.inventory.products[productId] = stockUpdate;
     }
 
     writeDB(db);
@@ -234,7 +263,20 @@ app.post('/api/stocks/:productId', (req, res) => {
 // Get inventory status
 app.get('/api/inventory', (req, res) => {
     const db = readDB();
-    res.json(db.inventory || {});
+    // Ensure we have the proper structure
+    if (!db.inventory) {
+        db.inventory = {
+            products: {},
+            categories: {
+                tshirt: {
+                    styles: {},
+                    sizes: ["S", "M", "L", "XL"]
+                },
+                jort: {}
+            }
+        };
+    }
+    res.json(db.inventory);
 });
 
 // Update product stock
