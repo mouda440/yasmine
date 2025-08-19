@@ -30,7 +30,7 @@ function validateProduct(product) {
     return product && 
            typeof product.name === 'string' && 
            typeof product.price === 'number' &&
-           ['tshirt', 'jort'].includes(product.type);
+           typeof product.type === 'string'; // Allow any type
 }
 
 function readDB() {
