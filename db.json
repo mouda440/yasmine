@@ -3,18 +3,7 @@
   "orders": [],
   "inventory": {
     "products": {},
-    "categories": {
-      "tshirt": {
-        "styles": {},
-        "sizes": ["S", "M", "L", "XL"]
-      },
-      "jort": {
-        "sizes": ["S", "M", "L", "XL"]
-      }
-    }
+    "categories": {}
   },
-  "stocks": {
-    "tshirt": {},
-    "jort": {}
-  }
+  "stocks": {}
 }
