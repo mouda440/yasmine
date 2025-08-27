@@ -182,45 +182,45 @@ app.get('/api/orders', (req, res) => {
 });
 
 app.post('/api/orders', (req, res) => {
-    backupDB();
-    const db = readDB();
-    db.orders.push(req.body);
+    try {
+        backupDB();
+        const db = readDB();
+        const order = req.body;
 
-    if (req.body.cart) {
-        req.body.cart.forEach(item => {
-            if (item.type === 'tshirt') {
-                const { style, size } = item;
-                if (db.stocks.tshirt?.[style]?.[size] !== undefined && db.stocks.tshirt[style][size] > 0) {
-                    db.stocks.tshirt[style][size]--;
-                }
-            } else if (item.type === 'jort') {
-                const { size } = item;
-                if (db.stocks.jort?.[size] !== undefined && db.stocks.jort[size] > 0) {
-                    db.stocks.jort[size]--;
-                }
-            } else {
-                let prodId = item.id || item.productId;
-                if (!prodId && db.products && Array.isArray(db.products)) {
-                    const baseName = item.name.split(' (')[0];
-                    const prod = db.products.find(p => p.name === baseName);
-                    if (prod) prodId = prod.id;
-                }
-                if (!prodId && db.products && Array.isArray(db.products)) {
-                    const prod = db.products.find(p => p.name === item.name);
-                    if (prod) prodId = prod.id;
-                }
-                if (prodId && item.size) {
-                    if (!db.stocks[prodId]) db.stocks[prodId] = {};
-                    if (db.stocks[prodId][item.size] !== undefined && db.stocks[prodId][item.size] > 0) {
-                        db.stocks[prodId][item.size]--;
-                    }
-                }
+        // Validate order has required fields
+        if (!order.cart || !order.name || !order.number || !order.email || !order.address) {
+            return res.status(400).json({ error: 'Invalid order data' });
+        }
+
+        // Check and update inventory
+        for (const item of order.cart) {
+            const productId = item.id;
+            const size = item.size;
+
+            // Ensure inventory structure exists
+            if (!db.inventory.products[productId]) {
+                db.inventory.products[productId] = {};
             }
-        });
+            
+            // Check stock
+            if (!db.inventory.products[productId][size] || db.inventory.products[productId][size] <= 0) {
+                return res.status(400).json({ error: `Item ${item.name} is out of stock` });
+            }
+
+            // Decrease stock
+            db.inventory.products[productId][size]--;
+        }
+
+        // Add order with timestamp
+        order.date = new Date().toISOString();
+        db.orders.push(order);
+        
+        writeDB(db);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Order processing error:', error);
+        res.status(500).json({ error: 'Failed to process order' });
     }
-    
-    writeDB(db);
-    res.json({ success: true });
 });
 
 app.delete('/api/admin/orders/:index', (req, res) => {
