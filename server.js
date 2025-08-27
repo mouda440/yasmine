@@ -170,6 +170,14 @@ app.delete('/api/admin/products/:id', (req, res) => {
             delete db.stocks[key];
         }
     });
+    // Remove any inventory.products entries for deleted/old products
+    if (db.inventory && db.inventory.products) {
+        Object.keys(db.inventory.products).forEach(key => {
+            if (!db.products.find(p => p.id === key)) {
+                delete db.inventory.products[key];
+            }
+        });
+    }
 
     writeDB(db);
     res.json({ success: true });
