@@ -159,11 +159,18 @@ app.delete('/api/admin/products/:id', (req, res) => {
     const id = req.params.id;
     
     db.products = (db.products || []).filter(p => p.id !== id);
-    
+
+    // Remove stock for this product
     if (db.stocks && db.stocks[id]) {
         delete db.stocks[id];
     }
-    
+    // Remove any stocks that are not 'tshirt' or 'jort'
+    Object.keys(db.stocks).forEach(key => {
+        if (key !== 'tshirt' && key !== 'jort') {
+            delete db.stocks[key];
+        }
+    });
+
     writeDB(db);
     res.json({ success: true });
 });

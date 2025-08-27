@@ -12,5 +12,9 @@
         "sizes": ["S", "M", "L", "XL"]
       }
     }
+  },
+  "stocks": {
+    "tshirt": {},
+    "jort": {}
   }
 }
