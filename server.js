@@ -39,23 +39,15 @@ function readDB() {
             fs.writeFileSync(DB_FILE, JSON.stringify({ 
                 orders: [], 
                 products: [],
-                inventory: { 
-                    products: {}, 
-                    categories: {
-                        tshirt: { styles: {}, sizes: ["S", "M", "L", "XL"] },
-                        jort: { sizes: ["S", "M", "L", "XL"] }
-                    }
-                },
-                stocks: {
-                    tshirt: {},
-                    jort: {}
+                inventory: {
+                    products: {}  // Simplified inventory structure
                 }
             }, null, 2));
         }
         return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     } catch (err) {
         console.error("DB read error:", err);
-        return { orders: [], products: [], inventory: {}, stocks: {} };
+        return { orders: [], products: [], inventory: { products: {} } };
     }
 }
 
@@ -248,107 +240,41 @@ app.delete('/api/admin/orders/:index', (req, res) => {
 // Inventory
 app.get('/api/inventory', (req, res) => {
     const db = readDB();
-    res.json(db.inventory || {});
+    res.json(db.inventory || { products: {} });
+});
+
+app.post('/api/inventory/bulk', (req, res) => {
+    try {
+        backupDB();
+        const db = readDB();
+        db.inventory = {
+            products: req.body.products || {}  // Only accept products inventory
+        };
+        writeDB(db);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Inventory update error:', error);
+        res.status(500).json({ error: 'Failed to update inventory' });
+    }
 });
 
 app.post('/api/inventory/product/:id', (req, res) => {
-    backupDB();
-    const db = readDB();
-    const { id } = req.params;
-    const stock = req.body;
-    
-    if (!db.inventory) db.inventory = { products: {}, categories: {} };
-    
-    const product = db.products.find(p => p.id === id);
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-    
-    if (product.type === 'tshirt') {
-        if (!db.inventory.categories.tshirt) {
-            db.inventory.categories.tshirt = { styles: {}, sizes: ["S", "M", "L", "XL"] };
+    try {
+        backupDB();
+        const db = readDB();
+        const { id } = req.params;
+        
+        if (!db.inventory.products) {
+            db.inventory.products = {};
         }
-        db.inventory.categories.tshirt.styles = {
-            ...db.inventory.categories.tshirt.styles,
-            ...stock
-        };
+        
+        db.inventory.products[id] = req.body;
+        writeDB(db);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Product inventory update error:', error);
+        res.status(500).json({ error: 'Failed to update product inventory' });
     }
-    else if (product.type === 'jort') {
-        if (!db.inventory.categories.jort) {
-            db.inventory.categories.jort = { sizes: ["S", "M", "L", "XL"] };
-        }
-        db.inventory.categories.jort = {
-            ...db.inventory.categories.jort,
-            ...stock
-        };
-    }
-    else {
-        db.inventory.products[id] = stock;
-    }
-    
-    writeDB(db);
-    res.json({ success: true });
-});
-
-app.get('/api/inventory/check', (req, res) => {
-    const db = readDB();
-    const { productId, style, size } = req.query;
-    
-    const product = db.products.find(p => p.id === productId);
-    if (!product) return res.json({ available: 0 });
-    
-    let stock = 0;
-    
-    if (product.type === 'tshirt') {
-        stock = db.inventory?.categories?.tshirt?.styles?.[style]?.[size] || 0;
-    }
-    else if (product.type === 'jort') {
-        stock = db.inventory?.categories?.jort?.[size] || 0;
-    }
-    else {
-        stock = db.inventory?.products?.[productId]?.[size] || 0;
-    }
-    
-    res.json({ available: stock });
-});
-
-// Stocks
-app.get('/api/stocks', (req, res) => {
-    const db = readDB();
-    res.json(db.stocks || {});
-});
-
-app.post('/api/stocks', (req, res) => {
-    backupDB();
-    const db = readDB();
-    db.stocks = req.body;
-    writeDB(db);
-    res.json({ success: true });
-});
-
-app.post('/api/stocks/:productId', (req, res) => {
-    backupDB();
-    const db = readDB();
-    const { productId } = req.params;
-    const stockUpdate = req.body;
-    
-    const product = db.products?.find(p => p.id === productId);
-    if (!product) {
-        return res.status(404).json({ error: 'Product not found' });
-    }
-
-    if (product.type === 'tshirt') {
-        if (!db.stocks.tshirt) db.stocks.tshirt = {};
-        Object.assign(db.stocks.tshirt, stockUpdate);
-    }
-    else if (product.type === 'jort') {
-        if (!db.stocks.jort) db.stocks.jort = {};
-        Object.assign(db.stocks.jort, stockUpdate);
-    }
-    else {
-        db.stocks[productId] = stockUpdate;
-    }
-
-    writeDB(db);
-    res.json({ success: true });
 });
 
 // Error handling middleware
