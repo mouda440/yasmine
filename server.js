@@ -192,23 +192,33 @@ app.post('/api/orders', (req, res) => {
             return res.status(400).json({ error: 'Invalid order data' });
         }
 
-        // Check and update inventory
+        // --- GROUP CART ITEMS BY PRODUCT/SIZE ---
+        const cartCount = {};
         for (const item of order.cart) {
             const productId = item.id;
             const size = item.size;
+            if (!cartCount[productId]) cartCount[productId] = {};
+            if (!cartCount[productId][size]) cartCount[productId][size] = 0;
+            cartCount[productId][size]++;
+        }
 
-            // Ensure inventory structure exists
-            if (!db.inventory.products[productId]) {
-                db.inventory.products[productId] = {};
+        // --- CHECK STOCK FOR ALL ITEMS ---
+        for (const productId in cartCount) {
+            for (const size in cartCount[productId]) {
+                const inCart = cartCount[productId][size];
+                const inStock = db.inventory.products[productId]?.[size] ?? 0;
+                if (inStock < inCart) {
+                    return res.status(400).json({ error: `Item ${productId} (Size: ${size}) is out of stock` });
+                }
             }
-            
-            // Check stock
-            if (!db.inventory.products[productId][size] || db.inventory.products[productId][size] <= 0) {
-                return res.status(400).json({ error: `Item ${item.name} is out of stock` });
-            }
+        }
 
-            // Decrease stock
-            db.inventory.products[productId][size]--;
+        // --- DECREMENT STOCK FOR ALL ITEMS ---
+        for (const productId in cartCount) {
+            for (const size in cartCount[productId]) {
+                db.inventory.products[productId][size] -= cartCount[productId][size];
+                if (db.inventory.products[productId][size] < 0) db.inventory.products[productId][size] = 0;
+            }
         }
 
         // Add order with timestamp
