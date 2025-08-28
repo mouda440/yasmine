@@ -1,8 +1,34 @@
 {
-  "products": [],
+  "products": [
+    {
+      "id": "tshirt001",
+      "name": "Vision T-shirt",
+      "price": 120,
+      "type": "tshirt",
+      "styles": [
+        { "value": "grey-black", "label": "Grey on Black" },
+        { "value": "white-black", "label": "White on Black" },
+        { "value": "white-red", "label": "White on Red" }
+      ],
+      "images": [
+        { "name": "Front", "url": "img/front black.jpg", "style": "grey-black" },
+        { "name": "Back", "url": "img/back grey-black.jpg", "style": "grey-black" },
+        { "name": "Front", "url": "img/front black.jpg", "style": "white-black" },
+        { "name": "Back", "url": "img/back black-white.jpg", "style": "white-black" },
+        { "name": "Front", "url": "img/front red.jpg", "style": "white-red" },
+        { "name": "Back", "url": "img/back red-white.jpg", "style": "white-red" }
+      ]
+    }
+  ],
   "orders": [],
   "inventory": {
-    "products": {},
+    "products": {
+      "tshirt001": {
+        "grey-black": { "S": 10, "M": 10, "L": 10, "XL": 10 },
+        "white-black": { "S": 10, "M": 10, "L": 10, "XL": 10 },
+        "white-red": { "S": 10, "M": 10, "L": 10, "XL": 10 }
+      }
+    },
     "categories": {}
   },
   "stocks": {}
