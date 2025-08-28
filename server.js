@@ -102,24 +102,15 @@ app.post('/api/products', (req, res) => {
         product.id = Math.random().toString(36).slice(2, 10);
         db.products.push(product);
 
-        // --- Always initialize inventory per style for t-shirts ---
-        if (product.type === 'tshirt') {
-            if (!db.inventory.products[product.id]) db.inventory.products[product.id] = {};
-            const styles = (product.styles && Array.isArray(product.styles)) 
-                ? product.styles 
-                : [{ value: 'grey-black' }, { value: 'white-black' }, { value: 'white-red' }];
-            styles.forEach(style => {
+        // --- Generalize: initialize inventory for any product with styles ---
+        if (product.styles && Array.isArray(product.styles) && product.styles.length > 0) {
+            db.inventory.products[product.id] = {};
+            product.styles.forEach(style => {
                 db.inventory.products[product.id][style.value] = {
                     'S': 0, 'M': 0, 'L': 0, 'XL': 0
                 };
             });
-        }
-        // --- Jort: flat sizes ---
-        else if (product.type === 'jort') {
-            db.inventory.products[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
-        }
-        // --- Other products: flat sizes ---
-        else {
+        } else {
             db.inventory.products[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
         }
     } else {
@@ -127,8 +118,8 @@ app.post('/api/products', (req, res) => {
         if (index === -1) {
             return res.status(404).json({ error: 'Product not found' });
         }
-        // --- Update inventory for t-shirts if styles changed ---
-        if (product.type === 'tshirt' && product.styles) {
+        // --- Generalize: update inventory for any product with styles ---
+        if (product.styles && Array.isArray(product.styles) && product.styles.length > 0) {
             if (!db.inventory.products[product.id]) db.inventory.products[product.id] = {};
             product.styles.forEach(style => {
                 if (!db.inventory.products[product.id][style.value]) {
@@ -137,6 +128,10 @@ app.post('/api/products', (req, res) => {
                     };
                 }
             });
+        } else {
+            if (!db.inventory.products[product.id] || typeof db.inventory.products[product.id] !== 'object' || Array.isArray(db.inventory.products[product.id])) {
+                db.inventory.products[product.id] = { 'S': 0, 'M': 0, 'L': 0, 'XL': 0 };
+            }
         }
         db.products[index] = product;
     }
@@ -199,7 +194,8 @@ app.post('/api/orders', (req, res) => {
             const style = item.style || null;
             const size = item.size;
             if (!cartCount[productId]) cartCount[productId] = {};
-            if (item.type === 'tshirt' && style) {
+            // Generalize: group by style+size if product has styles
+            if (item.style) {
                 if (!cartCount[productId][style]) cartCount[productId][style] = {};
                 if (!cartCount[productId][style][size]) cartCount[productId][style][size] = 0;
                 cartCount[productId][style][size]++;
@@ -217,11 +213,10 @@ app.post('/api/orders', (req, res) => {
                 errorMsg += `Product not found: ${productId}\n`;
                 continue;
             }
-            if (product.type === 'tshirt') {
+            if (product.styles && Array.isArray(product.styles) && product.styles.length > 0) {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         const inCart = cartCount[productId][style][size];
-                        // Strict: must exist and > 0
                         if (!db.inventory.products?.[productId]?.[style] || db.inventory.products[productId][style][size] === undefined) {
                             errorMsg += `Missing inventory for ${product.name} (${style}, Size: ${size})\n`;
                             continue;
@@ -254,7 +249,7 @@ app.post('/api/orders', (req, res) => {
         // --- DECREMENT STOCK FOR ALL ITEMS ---
         for (const productId in cartCount) {
             const product = db.products.find(p => p.id === productId);
-            if (product && product.type === 'tshirt') {
+            if (product && product.styles && Array.isArray(product.styles) && product.styles.length > 0) {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         db.inventory.products[productId][style][size] -= cartCount[productId][style][size];
