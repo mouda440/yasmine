@@ -213,27 +213,47 @@ app.post('/api/orders', (req, res) => {
             }
         }
 
+        // --- AUTO-INITIALIZE INVENTORY IF MISSING ---
+        for (const productId in cartCount) {
+            const product = db.products.find(p => p.id === productId);
+            if (!product) continue;
+            if (!db.inventory.products[productId]) {
+                db.inventory.products[productId] = {};
+            }
+            if (product.type === 'tshirt') {
+                for (const style in cartCount[productId]) {
+                    if (!db.inventory.products[productId][style]) {
+                        db.inventory.products[productId][style] = { S: 0, M: 0, L: 0, XL: 0 };
+                    }
+                    for (const size in cartCount[productId][style]) {
+                        if (db.inventory.products[productId][style][size] === undefined) {
+                            db.inventory.products[productId][style][size] = 0;
+                        }
+                    }
+                }
+            } else {
+                for (const size in cartCount[productId]) {
+                    if (db.inventory.products[productId][size] === undefined) {
+                        db.inventory.products[productId][size] = 0;
+                    }
+                }
+            }
+        }
+
         // --- CHECK STOCK FOR ALL ITEMS ---
         let stockError = false;
-        let missingInventoryError = false;
         let errorMsg = '';
         for (const productId in cartCount) {
             const product = db.products.find(p => p.id === productId);
             if (!product) {
-                missingInventoryError = true;
                 errorMsg += `Product not found: ${productId}\n`;
+                stockError = true;
                 continue;
             }
             if (product.type === 'tshirt') {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         const inCart = cartCount[productId][style][size];
-                        // Strict check for missing inventory
-                        if (!db.inventory.products?.[productId]?.[style] || db.inventory.products[productId][style][size] === undefined) {
-                            missingInventoryError = true;
-                            errorMsg += `Missing inventory for ${product.name} (${style}, Size: ${size})\n`;
-                            continue;
-                        }
                         const inStock = db.inventory.products[productId][style][size];
                         if (inStock < inCart) {
                             stockError = true;
@@ -244,12 +264,6 @@ app.post('/api/orders', (req, res) => {
             } else {
                 for (const size in cartCount[productId]) {
                     const inCart = cartCount[productId][size];
-                    // Strict check for missing inventory
-                    if (!db.inventory.products?.[productId] || db.inventory.products[productId][size] === undefined) {
-                        missingInventoryError = true;
-                        errorMsg += `Missing inventory for ${product.name} (Size: ${size})\n`;
-                        continue;
-                    }
                     const inStock = db.inventory.products[productId][size];
                     if (inStock < inCart) {
                         stockError = true;
@@ -257,10 +271,6 @@ app.post('/api/orders', (req, res) => {
                     }
                 }
             }
-        }
-        if (missingInventoryError) {
-            console.error('Order rejected due to missing inventory:', errorMsg);
-            return res.status(400).json({ error: 'Order rejected: missing inventory for one or more items.' });
         }
         if (stockError) {
             console.error('Order rejected due to insufficient stock:', errorMsg);
