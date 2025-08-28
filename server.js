@@ -102,18 +102,16 @@ app.post('/api/products', (req, res) => {
         product.id = Math.random().toString(36).slice(2, 10);
         db.products.push(product);
 
-        // --- Initialize inventory per style for t-shirts ---
+        // --- Always initialize inventory per style for t-shirts ---
         if (product.type === 'tshirt') {
             if (!db.inventory.products[product.id]) db.inventory.products[product.id] = {};
             const styles = (product.styles && Array.isArray(product.styles)) 
                 ? product.styles 
                 : [{ value: 'grey-black' }, { value: 'white-black' }, { value: 'white-red' }];
             styles.forEach(style => {
-                if (!db.inventory.products[product.id][style.value]) {
-                    db.inventory.products[product.id][style.value] = {
-                        'S': 0, 'M': 0, 'L': 0, 'XL': 0
-                    };
-                }
+                db.inventory.products[product.id][style.value] = {
+                    'S': 0, 'M': 0, 'L': 0, 'XL': 0
+                };
             });
         }
         // --- Jort: flat sizes ---
@@ -201,62 +199,35 @@ app.post('/api/orders', (req, res) => {
             const style = item.style || null;
             const size = item.size;
             if (!cartCount[productId]) cartCount[productId] = {};
-            // For t-shirts, group by style+size
             if (item.type === 'tshirt' && style) {
                 if (!cartCount[productId][style]) cartCount[productId][style] = {};
                 if (!cartCount[productId][style][size]) cartCount[productId][style][size] = 0;
                 cartCount[productId][style][size]++;
             } else {
-                // For other products, group by size
                 if (!cartCount[productId][size]) cartCount[productId][size] = 0;
                 cartCount[productId][size]++;
             }
         }
 
-        // --- AUTO-INITIALIZE INVENTORY IF MISSING ---
-        for (const productId in cartCount) {
-            const product = db.products.find(p => p.id === productId);
-            if (!product) continue;
-            if (!db.inventory.products[productId]) {
-                db.inventory.products[productId] = {};
-            }
-            if (product.type === 'tshirt') {
-                for (const style in cartCount[productId]) {
-                    if (!db.inventory.products[productId][style]) {
-                        db.inventory.products[productId][style] = { S: 0, M: 0, L: 0, XL: 0 };
-                    }
-                    for (const size in cartCount[productId][style]) {
-                        if (db.inventory.products[productId][style][size] === undefined) {
-                            db.inventory.products[productId][style][size] = 0;
-                        }
-                    }
-                }
-            } else {
-                for (const size in cartCount[productId]) {
-                    if (db.inventory.products[productId][size] === undefined) {
-                        db.inventory.products[productId][size] = 0;
-                    }
-                }
-            }
-        }
-
-        // --- CHECK STOCK FOR ALL ITEMS ---
-        let stockError = false;
+        // --- STRICT STOCK VALIDATION ---
         let errorMsg = '';
         for (const productId in cartCount) {
             const product = db.products.find(p => p.id === productId);
             if (!product) {
                 errorMsg += `Product not found: ${productId}\n`;
-                stockError = true;
                 continue;
             }
             if (product.type === 'tshirt') {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         const inCart = cartCount[productId][style][size];
+                        // Strict: must exist and > 0
+                        if (!db.inventory.products?.[productId]?.[style] || db.inventory.products[productId][style][size] === undefined) {
+                            errorMsg += `Missing inventory for ${product.name} (${style}, Size: ${size})\n`;
+                            continue;
+                        }
                         const inStock = db.inventory.products[productId][style][size];
-                        if (inStock < inCart) {
-                            stockError = true;
+                        if (inStock < inCart || inStock <= 0) {
                             errorMsg += `Not enough stock for ${product.name} (${style}, Size: ${size})\n`;
                         }
                     }
@@ -264,17 +235,20 @@ app.post('/api/orders', (req, res) => {
             } else {
                 for (const size in cartCount[productId]) {
                     const inCart = cartCount[productId][size];
+                    if (!db.inventory.products?.[productId] || db.inventory.products[productId][size] === undefined) {
+                        errorMsg += `Missing inventory for ${product.name} (Size: ${size})\n`;
+                        continue;
+                    }
                     const inStock = db.inventory.products[productId][size];
-                    if (inStock < inCart) {
-                        stockError = true;
+                    if (inStock < inCart || inStock <= 0) {
                         errorMsg += `Not enough stock for ${product.name} (Size: ${size})\n`;
                     }
                 }
             }
         }
-        if (stockError) {
-            console.error('Order rejected due to insufficient stock:', errorMsg);
-            return res.status(400).json({ error: 'One or more items are out of stock.' });
+        if (errorMsg) {
+            console.error('Order rejected:', errorMsg);
+            return res.status(400).json({ error: errorMsg.trim() });
         }
 
         // --- DECREMENT STOCK FOR ALL ITEMS ---
