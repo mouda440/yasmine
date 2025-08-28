@@ -215,29 +215,55 @@ app.post('/api/orders', (req, res) => {
 
         // --- CHECK STOCK FOR ALL ITEMS ---
         let stockError = false;
+        let missingInventoryError = false;
+        let errorMsg = '';
         for (const productId in cartCount) {
             const product = db.products.find(p => p.id === productId);
-            if (product && product.type === 'tshirt') {
+            if (!product) {
+                missingInventoryError = true;
+                errorMsg += `Product not found: ${productId}\n`;
+                continue;
+            }
+            if (product.type === 'tshirt') {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         const inCart = cartCount[productId][style][size];
-                        const inStock = db.inventory.products?.[productId]?.[style]?.[size] ?? 0;
+                        // Strict check for missing inventory
+                        if (!db.inventory.products?.[productId]?.[style] || db.inventory.products[productId][style][size] === undefined) {
+                            missingInventoryError = true;
+                            errorMsg += `Missing inventory for ${product.name} (${style}, Size: ${size})\n`;
+                            continue;
+                        }
+                        const inStock = db.inventory.products[productId][style][size];
                         if (inStock < inCart) {
                             stockError = true;
+                            errorMsg += `Not enough stock for ${product.name} (${style}, Size: ${size})\n`;
                         }
                     }
                 }
             } else {
                 for (const size in cartCount[productId]) {
                     const inCart = cartCount[productId][size];
-                    const inStock = db.inventory.products?.[productId]?.[size] ?? 0;
+                    // Strict check for missing inventory
+                    if (!db.inventory.products?.[productId] || db.inventory.products[productId][size] === undefined) {
+                        missingInventoryError = true;
+                        errorMsg += `Missing inventory for ${product.name} (Size: ${size})\n`;
+                        continue;
+                    }
+                    const inStock = db.inventory.products[productId][size];
                     if (inStock < inCart) {
                         stockError = true;
+                        errorMsg += `Not enough stock for ${product.name} (Size: ${size})\n`;
                     }
                 }
             }
         }
+        if (missingInventoryError) {
+            console.error('Order rejected due to missing inventory:', errorMsg);
+            return res.status(400).json({ error: 'Order rejected: missing inventory for one or more items.' });
+        }
         if (stockError) {
+            console.error('Order rejected due to insufficient stock:', errorMsg);
             return res.status(400).json({ error: 'One or more items are out of stock.' });
         }
 
@@ -265,6 +291,7 @@ app.post('/api/orders', (req, res) => {
         db.orders.push(order);
 
         writeDB(db);
+        console.log('Order placed:', order);
         res.json({ success: true });
     } catch (error) {
         console.error('Order processing error:', error);
