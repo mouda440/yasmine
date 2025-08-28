@@ -214,27 +214,31 @@ app.post('/api/orders', (req, res) => {
         }
 
         // --- CHECK STOCK FOR ALL ITEMS ---
+        let stockError = false;
         for (const productId in cartCount) {
             const product = db.products.find(p => p.id === productId);
             if (product && product.type === 'tshirt') {
                 for (const style in cartCount[productId]) {
                     for (const size in cartCount[productId][style]) {
                         const inCart = cartCount[productId][style][size];
-                        const inStock = db.inventory.products[productId]?.[style]?.[size] ?? 0;
+                        const inStock = db.inventory.products?.[productId]?.[style]?.[size] ?? 0;
                         if (inStock < inCart) {
-                            return res.status(400).json({ error: `Item ${product.name} (${style}, Size: ${size}) is out of stock` });
+                            stockError = true;
                         }
                     }
                 }
             } else {
                 for (const size in cartCount[productId]) {
                     const inCart = cartCount[productId][size];
-                    const inStock = db.inventory.products[productId]?.[size] ?? 0;
+                    const inStock = db.inventory.products?.[productId]?.[size] ?? 0;
                     if (inStock < inCart) {
-                        return res.status(400).json({ error: `Item ${productId} (Size: ${size}) is out of stock` });
+                        stockError = true;
                     }
                 }
             }
+        }
+        if (stockError) {
+            return res.status(400).json({ error: 'One or more items are out of stock.' });
         }
 
         // --- DECREMENT STOCK FOR ALL ITEMS ---
@@ -257,8 +261,9 @@ app.post('/api/orders', (req, res) => {
 
         // Add order with timestamp
         order.date = new Date().toISOString();
+        db.orders = db.orders || [];
         db.orders.push(order);
-        
+
         writeDB(db);
         res.json({ success: true });
     } catch (error) {
